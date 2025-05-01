@@ -1,72 +1,114 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-<script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@1c2407b26c61958baa93967b5412487cd94b290b/dist/aframe-master.min.js"></script>
-<script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+  <head>
+    <meta charset="UTF-8" />
+    <title>AR.js with Three.js - Red Cube</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: sans-serif;
+      }
+      .arjs-loader {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        z-index: 9999;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="arjs-loader" id="arjs-loader">Loading, please wait...</div>
 
-<style>
-  .arjs-loader {
-    height: 100%;
-    width: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    background-color: rgba(0, 0, 0, 0.8);
-    z-index: 9999;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
+    <script src="https://cdn.jsdelivr.net/npm/three@0.139.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.3.2/three.js/build/ar-nft.min.js"></script>
 
-  .arjs-loader div {
-    text-align: center;
-    font-size: 1.25em;
-    color: white;
-  }
-</style>
+    <script>
+      let scene, camera, renderer;
+      let clock = new THREE.Clock();
+      let markerRoot, arToolkitSource, arToolkitContext;
 
-<body style="margin : 0px; overflow: hidden;">
-  <!-- minimal loader shown until image descriptors are loaded -->
-  <div class="arjs-loader">
-    <div>Loading, please wait...</div>
-  </div>
-  <a-scene
-    vr-mode-ui="enabled: false;"
-    renderer="logarithmicDepthBuffer: true;"
-    embedded
-    arjs="trackingMethod: best; sourceType: webcam;debugUIEnabled: false;"
-  >
-    <!-- we use cors proxy to avoid cross-origin problems -->
+      init();
+      animate();
 
-    <!--
-      ⚠️⚠️⚠️
-      https://arjs-cors-proxy.herokuapp.com/ is now offline, Heroku has dismissed all his free plans from November 2022.
-      You need to host your own proxy and use it instead. The proxy is based on CORS Anywhere (see https://github.com/Rob--W/cors-anywhere).
-      ⚠️⚠️⚠️
-    -->
+      function init() {
+        // Scene
+        scene = new THREE.Scene();
 
-    <a-nft
-      type="nft"
-      url="https://arjs-cors-proxy.herokuapp.com/https://raw.githack.com/AR-js-org/AR.js/master/aframe/examples/image-tracking/nft/trex/trex-image/trex"
-      smooth="true"
-      smoothCount="10"
-      smoothTolerance=".01"
-      smoothThreshold="5"
-    >
-      <a-entity
-        gltf-model="https://arjs-cors-proxy.herokuapp.com/https://raw.githack.com/AR-js-org/AR.js/master/aframe/examples/image-tracking/nft/trex/scene.gltf"
-        scale="5 5 5"
-        position="50 150 0"
-      >
-      </a-entity>
-    </a-nft>
-    <a-entity camera></a-entity>
-  </a-scene>
-</body>
-</body>
+        // Camera
+        camera = new THREE.Camera();
+        scene.add(camera);
+
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.domElement.style.position = 'absolute';
+        renderer.domElement.style.top = '0px';
+        renderer.domElement.style.left = '0px';
+        document.body.appendChild(renderer.domElement);
+
+        // AR Source
+        arToolkitSource = new THREEx.ArToolkitSource({ sourceType: 'webcam' });
+        arToolkitSource.init(function onReady() {
+          setTimeout(() => {
+            document.getElementById('arjs-loader').style.display = 'none';
+          }, 1000);
+          onResize();
+        });
+
+        window.addEventListener('resize', () => onResize());
+
+        // AR Context
+        arToolkitContext = new THREEx.ArToolkitContext({
+          cameraParametersUrl:
+            'https://raw.githack.com/AR-js-org/AR.js/master/three.js/data/camera_para.dat',
+          detectionMode: 'mono_and_matrix',
+        });
+
+        arToolkitContext.init(() => {
+          camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
+        });
+
+        // Marker Root
+        markerRoot = new THREE.Group();
+        scene.add(markerRoot);
+
+        const markerControls = new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
+          type: 'nft',
+          descriptorsUrl:
+            'https://raw.githubusercontent.com/AR-js-org/AR.js/master/aframe/examples/image-tracking/nft/trex-image-big.jpeg',
+        });
+
+        // Red Cube
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.y = 0.5;
+        markerRoot.add(cube);
+      }
+
+      function onResize() {
+        arToolkitSource.onResizeElement();
+        arToolkitSource.copyElementSizeTo(renderer.domElement);
+        if (arToolkitContext.arController) {
+          arToolkitSource.copyElementSizeTo(arToolkitContext.arController.canvas);
+        }
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        if (arToolkitSource.ready) {
+          arToolkitContext.update(arToolkitSource.domElement);
+        }
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
 </html>
